@@ -1,0 +1,29 @@
+# Rust build artifacts
+eval/d1_bulletproof_bench/target/
+
+# CosmWasm build artifacts
+eval/d1_bulletproof_cosmwasm/bulletproof-contract/target/
+
+# Python cache
+eval/d3_lemon_market/__pycache__/
+eval/d3_systems_metrics/__pycache__/
+
+# Python virtual environment (created by run_all.sh for D3)
+eval/d3_lemon_market/venv/
+eval/d3_systems_metrics/venv/
+eval/d3_systems_metrics/results/
+
+# SGX build artifacts
+eval/d3_systems_metrics/sgx/*.o
+eval/d3_systems_metrics/sgx/*.so
+eval/d3_systems_metrics/sgx/app
+eval/d3_systems_metrics/sgx/App/*.o
+eval/d3_systems_metrics/sgx/Enclave/*.o
+eval/d3_systems_metrics/sgx/Enclave/Enclave_u.*
+eval/d3_systems_metrics/sgx/Enclave/Enclave_t.*
+eval/d3_systems_metrics/sgx/*.csv
+
+# TEE key release build artifacts
+eval/d3_systems_metrics/tee_key_release/target/
+
+.DS_Store
