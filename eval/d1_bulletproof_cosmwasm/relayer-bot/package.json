@@ -1,0 +1,16 @@
+{
+  "name": "rare-bullet-oracle-relayer",
+  "version": "1.0.0",
+  "description": "Simulated Oracle Relayer Bot for the Rare Bullet ZK-AMM two-phase claim flow",
+  "main": "relayer.js",
+  "type": "module",
+  "scripts": {
+    "start": "node relayer.js"
+  },
+  "dependencies": {
+    "@cosmjs/cosmwasm-stargate": "^0.32.4",
+    "@cosmjs/crypto": "^0.32.4",
+    "@cosmjs/proto-signing": "^0.32.4",
+    "@cosmjs/stargate": "^0.32.4"
+  }
+}
