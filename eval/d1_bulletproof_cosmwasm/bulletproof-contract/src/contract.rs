@@ -162,13 +162,18 @@ fn mint_cw20(deps: &mut DepsMut, env: &Env, recipient: &str) -> Result<(), Contr
 // ║                                                                       ║
 // ║   CONCEPTUAL VERIFICATION:                                            ║
 // ║     verify(oracle_pubkey,                                              ║
-// ║            SHA256(ipfs_cid_hash || commitment_hex || nullifier),       ║
+// ║            SHA256(len(ipfs_cid_hash)||ipfs_cid_hash ||                 ║
+// ║                   len(ct_key_hash)||ct_key_hash ||                     ║
+// ║                   len(commitment_hex)||commitment_hex ||               ║
+// ║                   len(nullifier)||nullifier ||                         ║
+// ║                   len(sender)||sender),                                ║
 // ║            oracle_signature) == true                                   ║
 // ║                                                                       ║
 // ║   The oracle (e.g., a DECO TLS oracle or TEE-attested ingestion       ║
 // ║   service) signs a digest binding the data payload identifier          ║
-// ║   (ipfs_cid_hash), the ZK commitment (commitment_hex), and the        ║
-// ║   payload nullifier. Without this attestation, a malicious seller      ║
+// ║   (ipfs_cid_hash), ciphertext key id (ct_key_hash), the ZK            ║
+// ║   commitment (commitment_hex), payload nullifier, and sender.         ║
+// ║   Without this attestation, a malicious seller                         ║
 // ║   could encrypt garbage data, generate a valid Bulletproof for an      ║
 // ║   arbitrary score, or supply a fabricated nullifier to bypass the      ║
 // ║   Sybil resistance check—flooding the AMM pool with worthless tokens. ║
@@ -176,8 +181,11 @@ fn mint_cw20(deps: &mut DepsMut, env: &Env, recipient: &str) -> Result<(), Contr
 // ║   IN A PRODUCTION DEPLOYMENT:                                         ║
 // ║     1. Store the oracle's Ed25519/secp256k1 public key on-chain       ║
 // ║        (in contract state or governance).                              ║
-// ║     2. Reconstruct the message:                                        ║
-// ║        msg = SHA256(ipfs_cid_hash || C_hex || nullifier).              ║
+// ║     2. Reconstruct the message with unambiguous field boundaries:      ║
+// ║        msg = SHA256(len(ipfs_cid_hash)||ipfs_cid_hash ||               ║
+// ║                     len(ct_key_hash)||ct_key_hash ||                   ║
+// ║                     len(C_hex)||C_hex || len(nullifier)||nullifier ||  ║
+// ║                     len(sender)||sender).                              ║
 // ║     3. Call cosmwasm_std::ed25519_verify (or secp256k1_verify) to     ║
 // ║        cryptographically verify the signature.                        ║
 // ║     4. Reject deposits with invalid or missing attestations.          ║
@@ -189,24 +197,36 @@ fn mint_cw20(deps: &mut DepsMut, env: &Env, recipient: &str) -> Result<(), Contr
 // ║   location where production verification logic must be inserted.      ║
 // ╚═══════════════════════════════════════════════════════════════════════╝
 /// **MOCK** — Verify the oracle's attestation signature binding the data
-/// payload, ZK commitment, and payload nullifier. In production, replace
-/// with real ed25519_verify / secp256k1_verify against a stored oracle
-/// public key.
+/// payload, ciphertext key, ZK commitment, payload nullifier, and transaction
+/// sender. In production, replace with real ed25519_verify / secp256k1_verify
+/// against a stored oracle public key.
+///
+/// Binds `SHA256(len(ipfs_cid_hash)||ipfs_cid_hash || len(ct_key_hash)||ct_key_hash || len(C_hex)||C_hex || len(nul)||nul || len(sender)||sender)`.
 ///
 /// Returns `Ok(())` if the signature is structurally valid (non-empty,
 /// hex-decodable). Returns `Err(InvalidOracleSignature)` otherwise.
 fn verify_oracle_signature(
     ipfs_cid_hash: &str,
+    ct_key_hash: &str,
     commitment_hex: &str,
     payload_nullifier: &str,
+    sender: &str,
     oracle_signature: &str,
 ) -> Result<(), ContractError> {
     // ── Step 1: Reconstruct the signed message (always executed) ───────
-    // In production the oracle attests: SHA256(ipfs_cid_hash || C_hex || nul)
+    // In production the oracle attests an unambiguous length-prefixed encoding:
+    // SHA256(len(ipfs_cid_hash)||ipfs_cid_hash || len(ct_key_hash)||ct_key_hash || len(C_hex)||C_hex || len(nul)||nul || len(sender)||sender)
     let mut hasher = Sha256::new();
-    hasher.update(ipfs_cid_hash.as_bytes());
-    hasher.update(commitment_hex.as_bytes());
-    hasher.update(payload_nullifier.as_bytes());
+    for field in [
+        ipfs_cid_hash,
+        ct_key_hash,
+        commitment_hex,
+        payload_nullifier,
+        sender,
+    ] {
+        hasher.update((field.len() as u32).to_be_bytes());
+        hasher.update(field.as_bytes());
+    }
     let _expected_digest = hasher.finalize();
 
     // ── Step 2: Decode the oracle signature from hex ──────────────────
@@ -495,8 +515,10 @@ pub fn execute_deposit(
     // ── Oracle signature verification (semantic binding) ──────────────
     verify_oracle_signature(
         &ipfs_cid_hash,
+        &ct_key_hash,
         &commitment_hex,
         &payload_nullifier,
+        info.sender.as_str(),
         &oracle_signature,
     )?;
 
